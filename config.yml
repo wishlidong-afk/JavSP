@@ -62,6 +62,9 @@ crawler:
   use_javdb_cover: fallback
   # 是否统一女优艺名。启用时会尝试将女优的多个艺名统一成一个
   normalize_actress_name: true
+  # 无法读取浏览器Cookie文件时，可手动填写JavDB Cookie。Cookie中的locale必须为zh
+  # javdb_cookie: 'locale=zh; _jdb_session=...'
+  javdb_cookie: null
 
 ################################
 # 配置整理时的命名规则

@@ -2,6 +2,7 @@
 import os
 import re
 import logging
+from http.cookies import SimpleCookie
 
 from javsp.web.base import Request, resp2html
 from javsp.web.exceptions import *
@@ -12,9 +13,29 @@ from javsp.datatype import MovieInfo, GenreMap
 from javsp.chromium import get_browsers_cookies
 
 
+def create_request(cookies=None):
+    """创建携带 Chrome TLS 指纹、中文页面偏好和可选 Cookie 的请求会话。"""
+    request = Request(use_scraper=True)
+    request.headers['Accept-Language'] = 'zh-CN,zh;q=0.9,zh-TW;q=0.8,en-US;q=0.7,en;q=0.6,ja;q=0.5'
+    if cookies:
+        request.cookies = cookies
+        if request.scraper:
+            request.scraper.cookies.update(request.cookies)
+    return request
+
+
+def parse_manual_cookie(cookie_text):
+    """将配置中的 JavDB Cookie 解析为请求会话可用的字典。"""
+    cookie = SimpleCookie()
+    cookie.load(cookie_text)
+    cookies = {key: value.value for key, value in cookie.items()}
+    if cookies.get('locale') != 'zh':
+        raise CredentialError('JavDB: javdb_cookie 必须包含 locale=zh，否则页面语言会导致解析失败')
+    return cookies
+
+
 # 初始化Request实例。使用scraper绕过CloudFlare后，需要指定网页语言，否则可能会返回其他语言网页，影响解析
-request = Request(use_scraper=True)
-request.headers['Accept-Language'] = 'zh-CN,zh;q=0.9,zh-TW;q=0.8,en-US;q=0.7,en;q=0.6,ja;q=0.5'
+request = create_request()
 
 logger = logging.getLogger(__name__)
 genre_map = GenreMap('data/genre_javdb.csv')
@@ -42,11 +63,15 @@ def get_html_wrapper(url):
                 except Exception as e:
                     logger.warning(f"获取JavDB的登录凭据时出错({e})，你可能使用的是国内定制版等非官方Chrome系浏览器", exc_info=True)
                     cookies_pool = []
+                if Cfg().crawler.javdb_cookie:
+                    cookies_pool.append({
+                        'profile': 'config.yml',
+                        'site': 'manual',
+                        'cookies': parse_manual_cookie(Cfg().crawler.javdb_cookie),
+                    })
             if len(cookies_pool) > 0:
                 item = cookies_pool.pop()
-                # 更换Cookies时需要创建新的request实例，否则cloudscraper会保留它内部第一次发起网络访问时获得的Cookies
-                request = Request(use_scraper=True)
-                request.cookies = item['cookies']
+                request = create_request(item['cookies'])
                 cookies_source = (item['profile'], item['site'])
                 logger.debug(f'未携带有效Cookies而发生重定向，尝试更换Cookies为: {cookies_source}')
                 return get_html_wrapper(url)

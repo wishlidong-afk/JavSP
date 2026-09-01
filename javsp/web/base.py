@@ -6,7 +6,7 @@ import shutil
 import logging
 import requests
 import contextlib
-import cloudscraper
+from curl_cffi import requests as curl_requests
 import lxml.html
 from tqdm import tqdm
 from lxml import etree
@@ -52,25 +52,17 @@ class Request():
             self.__post = requests.post
             self.__head = requests.head
         else:
-            self.scraper = cloudscraper.create_scraper()
-            self.__get = self._scraper_monitor(self.scraper.get)
-            self.__post = self._scraper_monitor(self.scraper.post)
-            self.__head = self._scraper_monitor(self.scraper.head)
+            self.scraper = curl_requests.Session(impersonate='chrome')
+            self.__get = self.scraper.get
+            self.__post = self.scraper.post
+            self.__head = self.scraper.head
 
-    def _scraper_monitor(self, func):
-        """监控cloudscraper的工作状态，遇到不支持的Challenge时尝试退回常规的requests请求"""
-        def wrapper(*args, **kw):
-            try:
-                return func(*args, **kw)
-            except Exception as e:
-                logger.debug(f"无法通过CloudFlare检测: '{e}', 尝试退回常规的requests请求")
-                if func == self.scraper.get:
-                    return requests.get(*args, **kw)
-                else:
-                    return requests.post(*args, **kw)
-        return wrapper
+    def _sync_cookies(self):
+        if self.scraper:
+            self.scraper.cookies.update(self.cookies)
 
     def get(self, url, delay_raise=False):
+        self._sync_cookies()
         r = self.__get(url,
                       headers=self.headers,
                       proxies=self.proxies,
@@ -81,6 +73,7 @@ class Request():
         return r
 
     def post(self, url, data, delay_raise=False):
+        self._sync_cookies()
         r = self.__post(url,
                       data=data,
                       headers=self.headers,
@@ -92,6 +85,7 @@ class Request():
         return r
 
     def head(self, url, delay_raise=True):
+        self._sync_cookies()
         r = self.__head(url,
                       headers=self.headers,
                       proxies=self.proxies,
@@ -140,10 +134,7 @@ def request_post(url, data, cookies={}, timeout=None, delay_raise=False):
 
 def get_resp_text(resp: Response, encoding=None):
     """提取Response的文本"""
-    if encoding:
-        resp.encoding = encoding
-    else:
-        resp.encoding = resp.apparent_encoding
+    resp.encoding = encoding or 'utf-8'
     return resp.text
 
 
