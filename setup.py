@@ -1,6 +1,7 @@
 import os
 from typing import List, Tuple
 from cx_Freeze import setup, Executable
+from curl_cffi import __file__ as curl_cffi_file
 
 # https://github.com/marcelotduarte/cx_Freeze/issues/1288
 base = None
@@ -13,6 +14,14 @@ include_files: List[Tuple[str, str]] = [
     (f'{proj_root}/data', 'data'),
     (f'{proj_root}/image', 'image')
 ]
+
+# curl_cffi's native libcurl DLL is installed alongside its package rather than
+# inside it, so cx_Freeze does not discover it from the Python imports alone.
+curl_cffi_libs = os.path.join(
+    os.path.dirname(os.path.dirname(curl_cffi_file)), 'curl_cffi.libs'
+)
+if os.path.isdir(curl_cffi_libs):
+    include_files.append((curl_cffi_libs, 'lib/curl_cffi.libs'))
 
 includes = []
 
@@ -44,4 +53,3 @@ setup(
     options = {'build_exe': build_exe}, 
     executables=[javsp]
 )
-

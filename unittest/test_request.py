@@ -1,5 +1,6 @@
 import pytest
 from curl_cffi import requests as curl_requests
+from pathlib import Path
 
 from javsp.web import base, javdb
 from javsp.web.exceptions import CredentialError
@@ -66,3 +67,10 @@ def test_manual_javdb_cookie_must_specify_chinese_locale():
 
     with pytest.raises(CredentialError, match='locale=zh'):
         javdb.parse_manual_cookie('_jdb_session=token')
+
+
+def test_cx_freeze_includes_curl_cffi_native_dll_directory():
+    setup_script = Path('setup.py').read_text(encoding='utf-8')
+
+    assert "'curl_cffi.libs'" in setup_script
+    assert "'lib/curl_cffi.libs'" in setup_script
