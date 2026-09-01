@@ -54,6 +54,11 @@ jobs:
       - name: Build with Cx_Freeze
         run: poetry run python setup.py build_exe -b dist
 
+      - name: Smoke test Windows executable
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .\dist\JavSP.exe -h
+
       - name: Set VERSION variable for windows
         shell: bash
         run: |
